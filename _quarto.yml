@@ -1,54 +1,32 @@
 project:
   type: website
   output-dir: docs
-  preview:
-    port: 4444
-
 website:
-  title: "Anna Duan's Portfolio"
   site-url: "https://annaduan09.github.io/portfolio" 
   repo-url: https://github.com/annaduan09/portfolio 
   repo-actions: [source]
+  navbar:
+    search: false
+    pinned: true
+    left:
+      - href: index.qmd
+        text: 'Home'
+      - href: portfolio.qmd
+        text: 'Work Samples'
+      - href: resume.qmd
+        text: 'About Me'
+    right:
+        - icon: linkedin
+          href: www.linkedin.com/in/annaduan
+        - icon: github
+          href: https://github.com/annaduan09
+        - icon: envelope
+          href: mailto:annaduan@sas.upenn.edu
 
   page-footer:
-    left: "&copy; Anna Duan, 2024"
-
-  sidebar:
-    logo: "images/course-icon.png"
-    pinned: true
-    align: center
-    tools: 
-      - icon: github
-        href: https://github.com/annaduan09/
-        text: "Anna's Github"
-      - icon: linkedin
-        href: https://www.linkedin.com/in/annaduan/
-        text: "Anna's Linkedin"         
-
-    style: "docked"
-    search: true
-    collapse-level: 2
-    contents:
-      - href: index.qmd
-        text: Welcome
-      - about.qmd
-      - section: analysis/index.qmd
-        contents:
-          - href: analysis/philly-tree-canopy.html
-            text: Tree Canopy Loss Prediction
-          - analysis/2-static-images.ipynb
-          - analysis/3-altair-hvplot.ipynb
-          - analysis/4-folium.ipynb
-
+    left: "&copy; cc-Anna Duan, 2024"
+        
 format:
   html:
     highlight-style: solarized
     theme: cosmo
-    css: styles.html
-    code-copy: true
-    code-overflow: wrap
-    toc: true
-
-
-
-
