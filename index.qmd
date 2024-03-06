@@ -1,5 +1,6 @@
 ---
 title: "Welcome!"
-subtitle: "My name is Anna. I am a data scientist and urban researcher."
+subtitle: "My name is Anna. I am a data scientist and researcher."
+toc: true
 ---
 
