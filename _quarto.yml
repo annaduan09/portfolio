@@ -43,7 +43,7 @@ format:
   html:
     highlight-style: solarized
     theme: cosmo
-    css: styles.css
+    css: styles.html
     code-copy: true
     code-overflow: wrap
     toc: true
