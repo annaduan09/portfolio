@@ -2,32 +2,28 @@ project:
   type: website
   output-dir: docs
   preview:
-    port: 3333
+    port: 4444
 
 website:
-  title: "MUSA 550 Quarto Template"
-  site-url: "https://musa-550-fall-2023.github.io/quarto-website-template" 
-  repo-url: https://github.com/MUSA-550-Fall-2023/quarto-website-template 
+  title: "Anna Duan's Portfolio"
+  site-url: "https://annaduan09.github.io/portfolio" 
+  repo-url: https://github.com/annaduan09/portfolio 
   repo-actions: [source]
 
   page-footer:
-    right: "This page is built with ❤️ and [Quarto](https://quarto.org/)."
-    left: "&copy; CC-Nick Hand, 2023"
+    left: "&copy; Anna Duan, 2024"
 
   sidebar:
     logo: "images/course-icon.png"
     pinned: true
     align: center
     tools: 
-      - icon: globe
-        href: https://nickhand.dev
-        text: "Personal Website"
       - icon: github
-        href: https://github.com/MUSA-550-Fall-2023/
-        text: "MUSA 550 GitHub"
-      - icon: twitter
-        href: https://twitter.com/nicholashand
-        text: "Nick Hand Twitter"         
+        href: https://github.com/annaduan09/
+        text: "Anna's Github"
+      - icon: linkedin
+        href: https://www.linkedin.com/in/annaduan/
+        text: "Anna's Linkedin"         
 
     style: "docked"
     search: true
