@@ -34,7 +34,8 @@ website:
       - about.qmd
       - section: analysis/index.qmd
         contents:
-          - analysis/philly-tree-canopy.html
+          - href: analysis/philly-tree-canopy.html
+            text: Tree Canopy Loss Prediction
           - analysis/2-static-images.ipynb
           - analysis/3-altair-hvplot.ipynb
           - analysis/4-folium.ipynb
