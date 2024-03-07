@@ -11,10 +11,8 @@ website:
     left:
       - href: index.qmd
         text: 'Home'
-      - href: portfolio.qmd
+      - href: analysis/TOD.qmd
         text: 'Work Samples'
-      - href: resume.qmd
-        text: 'About Me'
     right:
         - icon: linkedin
           href: www.linkedin.com/in/annaduan
