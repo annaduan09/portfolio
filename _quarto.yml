@@ -25,6 +25,5 @@ website:
         
 format:
   html:
-    css: css/vender.css
     highlight-style: solarized
     theme: flatly
