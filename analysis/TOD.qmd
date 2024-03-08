@@ -12,6 +12,8 @@ execute:
   echo: true
 ---
 
+![](/Users/annaduan/Desktop/GitHub/TOD-Assignment/station.jpg)
+
 # Introduction
 
 Boston, Massachusetts has one of the nation's most developed public
