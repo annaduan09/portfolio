@@ -12,6 +12,7 @@ execute:
   echo: true
 ---
 
+
 # Introduction
 
 Boston, Massachusetts has one of the nation's most developed public
@@ -29,6 +30,7 @@ determine where best to allocate funds in the future. In this brief, we
 investigate whether, and where, TOD has increased neighborhood value and
 desirability in Boston. We then identify limitations and areas for
 future expansion.
+
 
 ```{r setup}
 knitr::opts_chunk$set(
@@ -380,6 +382,7 @@ allTracts.group <-
   mutate(Rent.inf = ifelse(year == "2010", Rent * 1.1521, Rent))
 ```
 
+
 # Does TOD attract growth in population and rent?
 
 In this brief, census tracts within a half mile radius of MBTA subway
@@ -394,6 +397,7 @@ and 2018. This suggests that TOD makes neighborhoods amenable to growth
 and land value capitalization. One caveat, however, is that many other
 factors than TOD lead to growth, particularly in the downtown area where
 both population and rent increased the most.
+
 
 ```{r Graduated Symbol Maps, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 # graduated symbol maps
@@ -430,6 +434,7 @@ ggplot() +
   theme_void() + theme(legend.position="bottom")
 ```
 
+
 # How does TOD affect other neighborhood characteristics?
 
 Comparing TOD to non-TOD tracts can clarify the extent to which TOD
@@ -447,6 +452,7 @@ partially supports the idea that TOD is attractive and generates growth,
 although the growth in the downtown area may also be due to other
 benefits of the city center including business, recreation, and culture.
 
+
 ```{r Population, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group)+
   geom_sf(data = st_union(allTractsBos), color = "transparent") +
@@ -461,6 +467,7 @@ ggplot(allTracts.group)+
   theme(legend.position = "bottom")
 ```
 
+
 ## Bachelor's Degrees
 
 Neither TOD nor non-TOD tracts experience significant growth in this
@@ -470,6 +477,7 @@ may have initially attracted this population to TOD tracts, but the
 growth has slowed. Alternatively, it is possible that this correlation
 is spurious, and that TOD tracts are attractive for other reasons which
 appeal to well-educated individuals.
+
 
 ```{r Bachelors Degrees, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group)+
@@ -485,6 +493,7 @@ ggplot(allTracts.group)+
   theme(legend.position = "bottom")
 ```
 
+
 ## Median Household Income
 
 In 2010, non-TOD tracts had the highest median incomes. However, by
@@ -493,6 +502,7 @@ non-TOD tracts did not. This suggests that Boston residents are willing
 to pay for good transit access. It could also be attributable to the
 multiplier effect brought by downtown development as most of the TOD
 tracts which experienced growth are within the downtown area.
+
 
 ```{r Median Household Income, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group %>% filter(!is.na(medHHInc)))+
@@ -508,6 +518,7 @@ ggplot(allTracts.group %>% filter(!is.na(medHHInc)))+
   theme(legend.position = "bottom")
 ```
 
+
 ## Households without Vehicles
 
 The most dramatic difference between TOD and non-TOD tracts is the share
@@ -515,6 +526,7 @@ of households without a vehicle. Many TOD tracts are in the highest
 pctNoVehicle quintile, while most non-TOD tracts have much lower shares.
 This suggests that Boston's transit system makes it viable for non
 car-owning households to live in TOD tracts.
+
 
 ```{r Households without Vehicles, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group %>% filter(!is.na(pctNoVehicle)))+
@@ -530,6 +542,7 @@ ggplot(allTracts.group %>% filter(!is.na(pctNoVehicle)))+
   theme(legend.position = "bottom")
 ```
 
+
 ## Summary
 
 These trends are summarized in table 2.1 and visualized in figure 2.5.
@@ -541,6 +554,7 @@ who will generate higher tax revenue. However, while TOD tracts
 experienced growth in population, non-TOD tracts grew much more and
 bypassed transit-rich neighborhoods in 2018. This suggests that factors
 other than TOD may be equally important for population growth.
+
 
 ```{r Neighborhood Characteristics Tables, message=FALSE, warning=FALSE, include=TRUE}
 allTracts.Summary <- 
@@ -578,6 +592,7 @@ allTracts.Summary %>%
     theme(plot.title = element_text(size=15))
 ```
 
+
 # How does rent vary with distance from transit stops?
 
 If census tracts within a half mile of transit stations are more
@@ -588,6 +603,7 @@ rents, as expected. However, average rent peaks at around 3 miles from
 transit. This supports the previous observations that while TOD tracts
 have high value and desirability, external factors also impact tract
 value, particularly outside the half mile buffer from transit stations.
+
 
 ```{r Distance from Transit vs Rent Geom_line Plot, message=FALSE, warning=FALSE, include=TRUE}
 # 2018
@@ -623,6 +639,7 @@ ggplot(rent_dis18, aes(x=distance, y=Mean_Rent)) +
   theme_minimal()
 ```
 
+
 # Are TOD Neighborhoods Safer?
 
 Another proposed benefit of TOD is neighborhood safety. With walkable
@@ -640,6 +657,7 @@ tracts still have fewer robberies. One factor to note, however, is that
 many of the high-rent TOD tracts are in the downtown area, which often
 has the highest crime rates in cities. Still, TOD does not appear to
 promote public safety in Boston even when controlling for rent.
+
 
 ```{r crime, fig.height=6, fig.width=10, message=FALSE, warning=FALSE, include=TRUE}
 # Read crime data
@@ -668,6 +686,7 @@ ggplot() +
   facet_wrap(~TOD) +
   theme_void() + theme_minimal() + theme(legend.position="bottom")
 ```
+
 
 # Conclusion
 
@@ -703,6 +722,7 @@ of public transportation and TOD in this area will yield higher property
 value and tax revenues. Further, this area has a high share of
 households without vehicles, which suggests that residents here are
 already transit-reliant and will benefit from expansion of TOD.
+
 
 ```{r 5submarkets, fig.height=6, fig.width=10, message=FALSE, warning=FALSE, include=TRUE, results='hide'}
 ##########################Examining five submarkets ###########################
@@ -777,6 +797,7 @@ allTracts.fiveMarkets.Summary %>%
   theme_minimal() + theme(legend.position="bottom")
 ```
 
+
 # Data Sources
 
 [American Community Survey](https://api.census.gov/data/2018/acs/acs5/variables.html) 5 year estimates, 2010 & 2018
@@ -784,3 +805,4 @@ allTracts.fiveMarkets.Summary %>%
 [Boston Crime Incidents Reports](https://data.boston.gov/dataset/crime-incident-reports-july-2012-august-2015-source-legacy-system) via [Analyze Boston](https://data.boston.gov/)
 
 [Massachusetts Bay Transportation Authority](https://docs.digital.mass.gov/dataset/massgis-data-trains) station locations
+
