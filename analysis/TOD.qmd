@@ -30,7 +30,7 @@ investigate whether, and where, TOD has increased neighborhood value and
 desirability in Boston. We then identify limitations and areas for
 future expansion.
 
-```{r setup}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
 	echo = TRUE,
 	fig.ritna = 3,
@@ -144,22 +144,31 @@ qBr <- function(df, variable, rnd) {
 }
 
 q5 <- function(variable) {as.factor(ntile(variable, 5))}
-
-# palette
-
 ```
 
-```{r bounds, results = 'hide'}
+```{r bounds, include = FALSE}
 bosTracts <- tracts(state = "MA", county = "Suffolk") %>%
   erase_water() %>%
   st_transform('ESRI:102686') %>%
   select(GEOID) %>%
   filter(GEOID != 25025990101)
 
+bg <- counties(state = "MA", year = 2010) %>%
+  st_transform('ESRI:102686') %>%
+  st_crop(., xmin= 739715.8, ymin= 2908317, xmax= 812142.5, ymax= 2989421) %>%
+  erase_water() 
+
+rd <- primary_secondary_roads(state = "MA") %>%
+  st_transform('ESRI:102686') %>%
+  st_crop(., xmin= 739715.8, ymin= 2908317, xmax= 812142.5, ymax= 2989421) %>%
+  erase_water()
+
+water_rect <- st_as_sfc(st_bbox(bg), crs = "ESRI:102686")
+  
 tract_list <- bosTracts$GEOID
 ```
 
-```{r acs data, results = 'hide'}
+```{r acs data, include = FALSE}
 # ACS data
 # Input API key
 census_api_key("d9ebfd04caa0138647fbacd94c657cdecbf705e9", install = TRUE, overwrite = TRUE)
@@ -241,17 +250,11 @@ tracts18 <-
          year = "2018") %>%
   dplyr::select(-Households_hmow,-Households_hmre,-noVehicle_hmow,-noVehicle_hmre,-bachelor)
 
-# filter tracts
+# filter for boston tracts
 # Bind 2010 and 2018 tract data
 allTractsBos <- rbind(tracts10,tracts18) 
 
-
-# Filter for Boston tracts
-# allTractsBos <- 
-#   subset(allTracts, GEOID %in% bosTracts)
-
-################################PULL TRANSIT DATA################################
-# Read file
+# Read transit stops
 mbtaNode <- st_read("/Users/annaduan/Desktop/GitHub/TOD-Assignment/mbta_node.geojson") %>%
   st_transform(st_crs(bosTracts)) 
 
@@ -378,6 +381,21 @@ allTracts.group <-
       st_sf() %>%
       mutate(TOD = "Non-TOD")) %>%
   mutate(Rent.inf = ifelse(year == "2010", Rent * 1.1521, Rent))
+
+
+# Read crime data
+crime12 <- read.csv("/Users/annaduan/Desktop/GitHub/TOD-Assignment/Crime12.csv", header = TRUE, sep = ",", quote = "\"",
+         dec = ".")
+crime18 <- read.csv("/Users/annaduan/Desktop/GitHub/TOD-Assignment/Crime18.csv", header = TRUE, sep = ",", quote = "\"",
+                       dec = ".")
+
+crime12.sf <- st_as_sf(crime12, coords = c("LON", "LAT"), crs = 4326, agr = "constant") %>% 
+  st_transform(st_crs(allTracts.group))
+crime18.sf <- st_as_sf(crime18, coords = c("LON", "LAT"), crs = 4326, agr = "constant")  %>% 
+  st_transform(st_crs(allTracts.group))
+
+# Bind crime years
+crime.sf <- rbind(crime12.sf, crime18.sf)
 ```
 
 # Does TOD attract growth in population and rent?
@@ -409,24 +427,28 @@ oitroi_rent.group <- st_centroid(troi_rent)
 
 # Plot Population Map
 ggplot() + 
-  geom_sf(data=st_union(allTracts.group)) +
-  geom_sf(data = buffer, fill = "white") + 
-  geom_sf(data = oitroi_pop.group, aes(size = population), shape = 21, color = "transparent", 
-          fill = "lightblue", alpha = 1, show.legend = "point") + 
-  scale_size_continuous(range = c(0.01, 4))+
+  geom_sf(data = water_rect, fill = "lightblue1", color = "transparent") +
+  geom_sf(data = bg, fill = "gray85", color = "transparent") +
+  geom_sf(data=st_union(allTracts.group), fill = "gray90", color = "transparent") +
+  geom_sf(data = buffer, fill = "transparent", color = "violet") + 
+  geom_sf(data = oitroi_pop.group, aes(size = population, alpha = population), 
+          color = "cyan2", show.legend = "point") + 
+  scale_size_continuous(range = c(0.01, 2))+
   facet_wrap(~year)+
   labs(title = "Total Population 2010-2018", subtitle = "Boston, MA (1 dot = 1 tract)", caption="Figure 2.1") +
   theme_void() + theme(legend.position="bottom")
 
 # Plot Rent Map
 ggplot() + 
-  geom_sf(data=st_union(allTractsBos)) +
-  geom_sf(data = buffer, fill = "white") + 
-  geom_sf(data = oitroi_rent.group, aes(size = Rent), shape = 21, color = "transparent",
-          fill = "pink", alpha = 1, show.legend = "point") + 
-  scale_size_continuous(range = c(0.01, 4))+
+  geom_sf(data = water_rect, fill = "lightblue1", color = "transparent") +
+  geom_sf(data = bg, fill = "gray85", color = "transparent") +
+  geom_sf(data=allTracts.group, fill = "gray90", color = "gray85") +
+  geom_sf(data = buffer, fill = "transparent", color = "violet") + 
+  geom_sf(data = oitroi_rent.group, aes(size = Rent, alpha = Rent),
+          color = "pink",  show.legend = "point") + 
+  scale_size_continuous(range = c(0.01, 2))+
   facet_wrap(~year)+
-  labs(title = "Average Rent 2010-2018", subtitle = "Boston, MA (1 dot = 1 tract)", caption="Figure 2.2") +
+  labs(title = "Average Rent 2010-2018", subtitle = "Boston, MA (1 dot = 1 tract)") +
   theme_void() + theme(legend.position="bottom")
 ```
 
@@ -449,9 +471,11 @@ benefits of the city center including business, recreation, and culture.
 
 ```{r Population, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group)+
-  geom_sf(data = st_union(allTractsBos), color = "transparent") +
+  geom_sf(data = water_rect, fill = "lightblue1", color = "transparent") +
+  geom_sf(data = bg, fill = "gray85", color = "transparent") +
+  geom_sf(data=st_union(allTracts.group), fill = "gray90", color = "transparent") +
   geom_sf(aes(fill = q5(population)), color = "transparent") +
-  geom_sf(data = buffer, fill = "transparent", color = "red")+
+  geom_sf(data = buffer, fill = "transparent", color = "violet")+
   scale_fill_brewer(palette = "Blues",
                     labels = qBr(allTracts.group, "population"),
                     name = "Population\n(Quintile Breaks, TOD in Red)") +
@@ -473,9 +497,10 @@ appeal to well-educated individuals.
 
 ```{r Bachelors Degrees, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group)+
-  geom_sf(data = st_union(allTractsBos), color = "transparent")+
+  geom_sf(data = water_rect, fill = "lightblue1", color = "transparent") +
+  geom_sf(data = bg, fill = "gray90", color = "transparent") +
   geom_sf(aes(fill = q5(pctBach)), color = "transparent")+
-  geom_sf(data = buffer, fill = "transparent", color = "red")+
+  geom_sf(data = buffer, fill = "transparent", color = "violet")+
   scale_fill_brewer(palette = "Blues",
                     labels = qBr(allTracts.group %>% mutate(pctBach_100 = pctBach *100), "pctBach_100"),
                     name = "Residents older than 25 Years with Bachelor's (%)\n(Quintile Breaks, TOD in Red)") +
@@ -496,13 +521,14 @@ tracts which experienced growth are within the downtown area.
 
 ```{r Median Household Income, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group %>% filter(!is.na(medHHInc)))+
-  geom_sf(data = st_union(allTractsBos), color = "transparent")+
+  geom_sf(data = water_rect, fill = "lightblue1", color = "transparent") +
+  geom_sf(data = bg, fill = "gray90", color = "transparent") +
   geom_sf(aes(fill = q5(medHHInc)), color = "transparent") +
-  geom_sf(data = buffer, fill = "transparent", color = "red")+
+  geom_sf(data = buffer, fill = "transparent", color = "violet")+
   scale_fill_brewer(palette = "Blues",
                     labels = qBr(allTracts.group, "medHHInc"),
                     name = "Median HH Income\n(Quintile Breaks, TOD in Red)") +
-  labs(title = "Median Household Income", subtitle = "Boston, MA (US Dollars)", caption="Figure 3.3") +
+  labs(title = "Median Household Income", subtitle = "Boston, MA (US Dollars)") +
   facet_wrap(~year)+
   theme_void() + 
   theme(legend.position = "bottom")
@@ -518,16 +544,16 @@ car-owning households to live in TOD tracts.
 
 ```{r Households without Vehicles, fig.height=5, fig.width=8, message=FALSE, warning=FALSE, include=TRUE}
 ggplot(allTracts.group %>% filter(!is.na(pctNoVehicle)))+
-  geom_sf(data = st_union(allTractsBos), color = "transparent")+
+  geom_sf(data = water_rect, fill = "lightblue1", color = "transparent") +
+  geom_sf(data = bg, fill = "gray90", color = "transparent") +
   geom_sf(aes(fill = q5(pctNoVehicle)), color = "transparent") +
-  geom_sf(data = buffer, fill = "transparent", color = "red")+
+  geom_sf(data = buffer, fill = "transparent", color = "violet")+
   scale_fill_brewer(palette = "Blues",
                     labels = qBr(allTracts.group %>% mutate(pctNoVehicle_100 = pctNoVehicle *100), "pctNoVehicle_100"),
                     name = "% Households\n(Quintile Breaks, TOD in Red)") +
-  labs(title = "Share of Households without Vehicle 2010-2018", subtitle = "Boston, MA (percent)", caption="Figure 3.4") +
+  labs(title = "Share of Households without Vehicle 2010-2018", subtitle = "Boston, MA (percent)") +
   facet_wrap(~year)+
-  theme_void() + 
-  theme(legend.position = "bottom")
+  theme_void() + theme(legend.position = "bottom")
 ```
 
 ## Summary
@@ -558,7 +584,7 @@ allTracts.Summary %>%
   gather(Variable, Value, -year.TOD) %>%
   mutate(Value = round(Value, 2)) %>%
   spread(year.TOD, Value) %>%
-  pander(caption = "Table 3.1: Neighborhood Characteristics by TOD and Year")
+  pander(caption = "Neighborhood Characteristics by TOD and Year")
 ```
 
 ```{r Neighborhood Characteristics Group Bar Plot, message=FALSE, warning=FALSE, include=TRUE}
@@ -633,7 +659,7 @@ To test this idea, we map cases of a common street crime, robbery. As
 land value tends to correlate with crime, we map average rent to control
 for this effect.
 
-TOD tracts seem to have more robberies, particularly downtown. Even when
+TOD tracts have more robberies, particularly downtown. Even when
 controlling for rent, low-rent non-TOD tracts had fewer robberies than
 their corresponding TOD tracts. In the higher rent category, non-TOD
 tracts still have fewer robberies. One factor to note, however, is that
@@ -642,31 +668,32 @@ has the highest crime rates in cities. Still, TOD does not appear to
 promote public safety in Boston even when controlling for rent.
 
 ```{r crime, fig.height=6, fig.width=10, message=FALSE, warning=FALSE, include=TRUE}
-# Read crime data
-crime12 <- read.csv("/Users/annaduan/Desktop/GitHub/TOD-Assignment/Crime12.csv", header = TRUE, sep = ",", quote = "\"",
-         dec = ".")
-crime18 <- read.csv("/Users/annaduan/Desktop/GitHub/TOD-Assignment/Crime18.csv", header = TRUE, sep = ",", quote = "\"",
-                       dec = ".")
 
-crime12.sf <- st_as_sf(crime12, coords = c("LON", "LAT"), crs = 4326, agr = "constant") %>% 
-  st_transform(st_crs(allTracts.group))
-crime18.sf <- st_as_sf(crime18, coords = c("LON", "LAT"), crs = 4326, agr = "constant")  %>% 
-  st_transform(st_crs(allTracts.group))
+tod_group <- allTracts.group %>%
+  filter(year == 2018) %>%
+  select(TOD, GEOID) %>%
+  st_drop_geometry() %>%
+  left_join(bosTracts, by = "GEOID") %>%
+  st_as_sf() %>%
+  st_make_valid()
 
-# Bind crime years
-crime.sf <- rbind(crime12.sf, crime18.sf)
+crime.sf <- crime.sf %>%
+  st_make_valid() %>%
+  st_intersection(tod_group) 
 
 # Plot crime and rent for TOD and Non-TOD
 ggplot() +   
-  geom_sf(data = bosTracts, fill = "gray90", color = "transparent") +
-  geom_sf(data=allTracts.group, aes(fill = q5(Rent.inf))) +
-  geom_sf(data=crime.sf, show.legend = "point", size= 0.1, color = "white") +
+  geom_sf(data = water_rect, fill = "lightblue1", color = "transparent") +
+  geom_sf(data = bg, fill = "gray90", color = "transparent") +
+  geom_sf(data = bosTracts, fill = "gray95", color = "transparent") +
+  geom_sf(data = allTracts.group, aes(fill = q5(Rent.inf)), color = "transparent") +
+  geom_sf(data=crime.sf, show.legend = "point", color = "violet", alpha = 0.3) +
   scale_fill_brewer(palette = "Blues",
                     labels = qBr(allTracts.group, "Rent.inf"),
                     name = "Rent\n(Quintile Breaks)") +
   labs(title="Crime, Transit Access, and Rent, 2012 & 2018", subtitle="Boston, MA (1 dot = 1 robbery incident)", caption="Figure 5.1") +
   facet_wrap(~TOD) +
-  theme_void() + theme_minimal() + theme(legend.position="bottom")
+  theme_void() + theme(legend.position="bottom")
 ```
 
 # Conclusion
@@ -705,7 +732,6 @@ households without vehicles, which suggests that residents here are
 already transit-reliant and will benefit from expansion of TOD.
 
 ```{r 5submarkets, fig.height=6, fig.width=10, message=FALSE, warning=FALSE, include=TRUE, results='hide'}
-##########################Examining five submarkets ###########################
 # Create submarkets for downtown and each line
 downtown <-
   st_intersection(
@@ -767,13 +793,17 @@ allTracts.fiveMarkets.Summary %>%
 
 # Group bar plot comparing submarkets
 allTracts.fiveMarkets.Summary %>%
+  rename(median_income = MedHHInc, 
+         population = Population, 
+         bachelors_degree = pctBach, 
+         no_car = pctNoVehicle, 
+         rent = Rent) %>%
   gather(Variable, Value, -year, -Submarket) %>%
   ggplot(aes(year, Value, fill = Submarket)) +
   geom_bar(stat = "identity", position = "dodge") +
   facet_wrap(~Variable, scales = "free", ncol=5) +
-  scale_fill_manual(values = c("chartreuse", "cyan", "black", "gray", "orange", "pink", "#CDCDCD")) +
-  labs(title = "Indicators Across TOD Submarkets", subtitle="Boston, MA", caption="Figure 6.1") +
-    theme(plot.title = element_text(size=15)) +
+  scale_fill_manual(values = c("cyan4", "violet", "olivedrab", "gray20", "orange1", "salmon", "#CDCDCD")) +
+  labs(title = "Indicators Across TOD Submarkets") +
   theme_minimal() + theme(legend.position="bottom")
 ```
 
