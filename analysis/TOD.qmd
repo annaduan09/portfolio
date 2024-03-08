@@ -12,7 +12,7 @@ execute:
   echo: true
 ---
 
-![](/Users/annaduan/Desktop/GitHub/TOD-Assignment/station.jpg)
+![](images/station.jpg)
 
 # Introduction
 
