@@ -2,7 +2,6 @@ project:
   type: website
   output-dir: docs
 website:
-  site-url: "https://annaduan09.github.io/portfolio" 
   repo-url: https://github.com/annaduan09/portfolio 
   repo-actions: [source]
   navbar:
@@ -26,5 +25,6 @@ website:
         
 format:
   html:
+    css: css/vender.css
     highlight-style: solarized
-    theme: cosmo
+    theme: flatly

@@ -1,8 +1,9 @@
 ---
 title: "Welcome!"
-subtitle: "My name is Anna. I am a data scientist and researcher."
 toc: true
 
 ---
 
-# Welcome to my website!
+My name is Anna and I’m passionate about spatial data science, machine learning, and maps. My favorite tools are R, Shiny, and Python, but I also work in ArcGIS, CSS, HTML, JavaScript, and the Adobe suite.
+
+I'm pursuing a [Master of Urban Spatial Analytics](https://www.design.upenn.edu/musa/about) at the University of Pennsylvania's Weitzman School of Design, where I serve as teaching assistant for the graduate-level Public Policy Analytics course. I am also a Research Analyst at the Housing Initiative at Penn, where I study the equity implications of affordable housing policy and [Emergency Rental Assistance](https://www.housinginitiative.org/rent-debt-and-tenant-vulnerability-in-los-angeles.html) and develop cool interactive [data visualizations](https://housinginitiative.shinyapps.io/PHFA_Housing_Dashboard/).
