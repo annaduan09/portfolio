@@ -11,7 +11,9 @@ website:
       - href: index.qmd
         text: 'Home'
       - href: analysis/TOD.qmd
-        text: 'Work Samples'
+        text: 'TOD'
+      - href: analysis/miami_hedonic_model.qmd
+        text: 'Miami'
     right:
         - icon: linkedin
           href: www.linkedin.com/in/annaduan
