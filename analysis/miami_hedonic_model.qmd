@@ -17,6 +17,7 @@ Accurate prediction of home sale prices is important right now as the real estat
 
 
 ```{r setup, include = FALSE}
+options(scipen = 999)
 
 knitr::opts_chunk$set(
   echo = TRUE,
@@ -36,12 +37,16 @@ library(grid)
 library(knitr)
 library(gridExtra)
 library(ggcorrplot)
-library(stargazer)
 library(mapview)
 library(osmdata)
 library(tidycensus)
 library(tidygeocoder)
 library(pander)
+library(tigris)
+
+library(conflicted)
+conflicts_prefer(dplyr::select)
+conflicts_prefer(dplyr::filter)
 
 palette5 <- c("#c8ddfa", "#8cb5ed", "#5890db",   "#2868bd", "#023578")
 paletteMap <- c("gray90","gray70","gray50","gray30","gray10")
@@ -80,36 +85,18 @@ nn_function <- function(measureFrom,measureTo,k) {
 ```
 
 ## Data
-For this analysis, we received a dataset of houses and their internal characteristics including number of rooms, living area, and pools. In addition, we gathered open-sourced data from the American Community Survey, Miami Dade County's Open Data Hub, OpenStreetMaps. This includes  census-tract level demographic information and point and polygon layers of amenities including restaurants and parks (Table 1). It is expected that attributes that contribute to quality of life such as proximity to restaurants, park space, and low commuting times correlate positively with sale prices. 
-```{r Read Data, message=FALSE, warning=FALSE, include=TRUE, results='hide'}
-#projected to NAD 1983 StatePlane Florida East FIPS 0901 Feet
-
-#STUDY AREA
-miamiBound <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Raw\ Data/Municipal_Boundary.geojson") %>%
-  filter(NAME == "MIAMI BEACH" | NAME == "MIAMI") %>%
-  st_make_valid() %>%
-  st_union() %>%
-  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, agr = "constant") %>%
-  st_transform('ESRI:102658')
-
-
-
-#STUDY AREA OSM (not projected)
-miamiBoundOSM <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Raw\ Data/Municipal_Boundary.geojson") %>%
-  filter(NAME == "MIAMI BEACH" | NAME == "MIAMI") %>%
-  st_make_valid() %>%
-  st_union()
-```
+For this analysis, we have a dataset of houses and their internal characteristics including number of rooms, living area, and pools. In addition, we gathered open-sourced data from the American Community Survey, Miami-Dade County's Open Data Hub, OpenStreetMaps. This includes  census-tract level demographic information and point and polygon layers of amenities including restaurants and parks (Table 1). It is expected that attributes that contribute to quality of life such as proximity to restaurants, park space, and low commuting times correlate positively with sale prices.
 
 ```{r house data}
 houses <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Raw\ Data/studentsData.geojson") %>%
   st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, agr = "constant") %>%
   st_transform('ESRI:102658') %>%
   st_centroid() %>%
-  mutate(sale_type = as.factor(saleType),
+  mutate(id = as.character(Folio),
+         price = as.numeric(SalePrice),
+         sale_type = as.factor(saleType),
          city = as.factor(Property.City),
-         zip_code = as.factor(Property.Zip),
-         landuse = as.factor(Land.Use),
+         zip_code = as.factor(substr(Property.Zip, 1, 5)),
          zoning = as.factor(Zoning),
          sqft = AdjustedSqFt,
          lot_size = LotSize,
@@ -117,7 +104,7 @@ houses <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Ra
          baths = Bath,
          stories = Stories,
          units = Units,
-         year_built = YearBuilt,
+         year_built = as.factor(YearBuilt),
          eff_year_built = EffectiveYearBuilt,
          feature_1 = as.factor(XF1),
          feature_2 = as.factor(XF2),
@@ -125,30 +112,102 @@ houses <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Ra
          living_sqft = LivingSqFt,
          actual_sqft = ActualSqFt,
          address = Property.Address) %>%
-  dplyr::select(Folio, address, sale_type, city, zip_code, landuse, zoning, sqft, lot_size, beds, baths, stories, units, year_built, eff_year_built, feature_1, feature_2, feature_3, living_sqft, actual_sqft, SalePrice)
+  dplyr::select(id, price, address, sale_type, city, zip_code, zoning, sqft, lot_size, beds, baths, stories, units, year_built, eff_year_built, feature_1, feature_2, feature_3, living_sqft, actual_sqft, toPredict)
   
+```
+
+```{r house cat vars}
+#MAKE CATEGORICAL VARIABLES
+ houses <-
+  houses %>%
+  mutate(beds_bi = ifelse(beds <= 4, "<=4 beds", ">4 beds"),
+         bath_bi = ifelse(baths <= 3, "<=3 baths", ">3 baths"),
+         sqft_bi = ifelse(sqft <= 2379, "<=2379 sqft", "> 2379 sqft"))
+
+houses <- houses %>%
+  mutate(
+    Pool = ifelse(
+      str_detect(feature_1, "Pool") |
+        str_detect(feature_2, "Pool") |
+        str_detect(feature_3, "Pool") |
+        str_detect(feature_1, "Whirlpool") |
+        str_detect(feature_2, "Whirlpool") |
+        str_detect(feature_3, "Whirlpool") |
+        str_detect(feature_1, "Jacuzzi") |
+        str_detect(feature_2, "Jacuzzi") |
+        str_detect(feature_3, "Jacuzzi"),
+      "1",
+      "0"
+    ),
+    Patio = ifelse(
+      str_detect(feature_1, "Patio") |
+        str_detect(feature_2, "Patio") |
+        str_detect(feature_3, "Patio"),
+      "1",
+      "0"
+    ),
+    Fence = ifelse(
+      str_detect(feature_1, "Fence") |
+        str_detect(feature_2, "Fence") |
+        str_detect(feature_3, "Fence"),
+      "1",
+      "0"
+    ),
+    Gazebo = ifelse(
+      str_detect(feature_1, "Gazebo") |
+        str_detect(feature_2, "Gazebo") |
+        str_detect(feature_3, "Gazebo"),
+      "1",
+      "0"
+    ),
+    Carport = ifelse(
+      str_detect(feature_1, "Carport") |
+        str_detect(feature_2, "Carport") |
+        str_detect(feature_3, "Carport"),
+      "1",
+      "0"
+    ),
+    Wall = ifelse(
+      str_detect(feature_1, "Wall") |
+        str_detect(feature_2, "Wall") |
+        str_detect(feature_3, "Wall"),
+      "1",
+      "0"
+    ),
+    Dock = ifelse(
+      str_detect(feature_1, "Dock") |
+        str_detect(feature_2, "Dock") |
+        str_detect(feature_3, "Dock"),
+      "1",
+      "0"
+    )
+  )
 
 houses %>%
   str() %>%
   pander()
 ```
 
+## Exploratory Analysis  
 ```{r expl viz}
+houses_known <- houses %>% 
+  filter(toPredict == 0)
 
-correlation.long <- houses %>%
+correlation.long <- houses_known %>%
+  filter(price < 10000000) %>% # removes about 30 outliers, or <1 %
   st_drop_geometry() %>%
-    dplyr::select(-Folio, -address, -sale_type, -city, -zip_code, -landuse, -zoning, -feature_1, -feature_2, -feature_3) %>%
-    gather(Variable, Value, -SalePrice) %>%
+    dplyr::select(price, sqft, lot_size, beds, baths, stories, units, living_sqft, actual_sqft) %>%
+    gather(Variable, Value, -price) %>%
   mutate(Value = as.numeric(Value))
 
 correlation.cor <-
   correlation.long %>%
     group_by(Variable) %>%
-    summarize(correlation = cor(Value, SalePrice, use = "complete.obs"))
+    summarize(correlation = cor(Value, price, use = "complete.obs"))
 
 
-ggplot(correlation.long, aes(Value, SalePrice)) +
-  geom_point(size = 0.1) +
+ggplot(correlation.long, aes(Value, price)) +
+  geom_point(alpha = 0.5, color = "lightblue") +
   geom_text(data = correlation.cor, aes(label = paste("r =", round(correlation, 2))),
             x=-Inf, y=Inf, vjust = 1.5, hjust = -.1) +
   geom_smooth(method = "lm", se = FALSE, color = "gray") +
@@ -164,58 +223,70 @@ histList <- list()
 for(i in vars){
   histList[[i]] <- 
     ggplot() +
-      geom_histogram(data = houses, aes(x = .data[[i]]), stat = "count") +
+      geom_histogram(data = houses, aes(x = .data[[i]]), stat = "count", fill = "lightblue") +
       labs(title=i) +
       theme_minimal() +
       theme(plot.title = element_text(size=10))
 }
 
-do.call(grid.arrange,c(histList, ncol = 3, top = "Feature Distributions"))
+do.call(grid.arrange,c(histList, ncol = 3, top = "Continuous Feature Distributions"))
+```
+
+
+```{r categorical features}
+houses_cat <- houses_known %>%
+  dplyr::select(price, sale_type, city, zoning, beds_bi, bath_bi, sqft_bi, Pool, Patio, Fence, Gazebo, Carport, Wall, Dock, year_built)
+
+vars <- colnames(houses_cat) %>%
+  .[! . %in% c("price", "geometry")]
+plotList <- list()
+
+#map risk factors
+for(i in vars){
+  plotList[[i]] <- 
+ggplot(houses_cat, aes(x = .data[[i]], y = price)) +
+  stat_summary(fun = mean, geom = "col", fill = "lightblue") +
+  theme_minimal()
+}
+
+do.call(grid.arrange,c(plotList, ncol = 3, top = "Continuous Feature Distributions"))
 
 ```
 
-```{r house data prep}
 
- #MAKE CATEGORICAL VARIABLES
- houses <-
-  houses %>%
-  mutate(beds_bi = ifelse(beds <= 4, "<=4 beds", ">4 beds"),
-         bath_bi = ifelse(baths <= 3, "<=3 baths", ">3 baths"),
-         sqft_bi = ifelse(sqft <= 2379, "<=2379 sqft", "> 2379 sqft"))
+```{r boundaries/mapping layers}
+miami_tract <- tracts(state = "FL", county = "Miami-Dade") %>%
+  st_transform('ESRI:102658') %>% # NAD 1983 StatePlane Florida East FIPS 0901 Feet
+  filter(substr(GEOID, 1, 6) == "120860") %>%
+  erase_water() %>%
+  dplyr::select(GEOID)
 
-# 
-# # other house features
-# # Custom function to check for features
-# check_feature <- function(df, feature_names, columns) {
-#   feature_present <- purrr::map_lgl(feature_names, ~rowSums(stringr::str_detect(df[columns], .x)) > 0)
-#   ifelse(feature_present, paste(feature_names[1], sep=""), paste("No", feature_names[1], sep=" "))
-# }
-# 
-# # Apply the function for each feature
-# houses <- houses %>%
-#   mutate(
-#     Pool = check_feature(houses, c("Pool", "Whirlpool", "Jacuzzi"), c("XF1", "XF2", "XF3")),
-#     Patio = check_feature(houses, "Patio", c("XF1", "XF2", "XF3")),
-#     Fence = check_feature(houses, "Fence", c("XF1", "XF2", "XF3")),
-#     Gazebo = check_feature(houses, "Gazebo", c("XF1", "XF2", "XF3")),
-#     Carport = check_feature(houses, "Carport", c("XF1", "XF2", "XF3")),
-#     Wall = check_feature(houses, "Wall", c("XF1", "XF2", "XF3")),
-#     Dock = check_feature(houses, "Dock", c("XF1", "XF2", "XF3"))
-#   )
-
+#STUDY AREA
+miamiBound <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Raw\ Data/Municipal_Boundary.geojson") %>%
+  filter(NAME == "MIAMI BEACH" | NAME == "MIAMI") %>%
+  st_make_valid() %>%
+  st_union() %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, agr = "constant") %>%
+  st_transform('ESRI:102658') # NAD 1983 StatePlane Florida East FIPS 0901 Feet
 ```
 
-```{r features}
+```{r external features}
+#STUDY AREA OSM (not projected)
+miamiBoundOSM <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Raw\ Data/Municipal_Boundary.geojson") %>%
+  filter(NAME == "MIAMI BEACH" | NAME == "MIAMI") %>%
+  st_make_valid() %>%
+  st_union()
+
 #HOUSE DATA OSM (Not projected)
 housesOSM <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Raw\ Data/studentsData.geojson")
 
-
 #CENSUS
 census_api_key("d9ebfd04caa0138647fbacd94c657cdecbf705e9", install = TRUE, overwrite = TRUE)
-#read in: vacant property, total housing units, mhhinc, white, population, owner occ, renter occ, travel time to work
+
 acs <-
   get_acs(geography = "tract", variables = c("B25002_003E", "B25001_001E", "B19013_001E", "B01001A_001E", "B01003_001E", "B07013_002E", "B07013_003E", "B08012_001E", "B25104_001E"), year=2018, state=12, county=086, geometry=T) %>%
   st_transform('ESRI:102658')
+
 #filter for Miami/Miami beach tracts
 acs <-
   rbind(
@@ -231,6 +302,7 @@ acs <-
       mutate(inMiami = "NO")) %>%
   filter(inMiami == "YES") %>%
   dplyr::select(-inMiami)
+
 #long to wide form
 acs <-
   acs %>%
@@ -246,7 +318,9 @@ acs <-
          renterOcc = B07013_003,
          timeToWork = B08012_001,
          monthhousingcost = B25104_001)
+
 acs["119", "medHHInc"] = 33194   #input value from nearby tract in same neighborhod because NA was messing up MAE
+
 acs %>% na.omit()
 
 
@@ -267,14 +341,13 @@ xmax = st_bbox(miamiBoundOSM)[[3]]
 ymax = st_bbox(miamiBoundOSM)[[4]]
 
 
-
 #FOOD AND BEVERAGE SPOTS
 foodBev <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Raw\ Data/food_bev.geojson") %>%
   st_as_sf()
 
 
 #COASTLINE
-Coastline<-opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+Coastline <-opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
   add_osm_feature("natural", "coastline") %>%
   osmdata_sf()
 
@@ -283,10 +356,6 @@ housesOSM <-
   housesOSM %>%  
   mutate(CoastDist=(geosphere::dist2Line(p=st_coordinates(st_centroid(housesOSM)),
                                         line=st_coordinates(Coastline$osm_lines)[,1:2])*0.00062137)[,1])
-houses <-
-  houses %>%
-  mutate(distWater = housesOSM$CoastDist,
-         SPSqFt = ifelse(!is.na(ActualSqFt)&!is.na(SalePrice), SalePrice / ActualSqFt, 0))
 
 
 #PARKS
@@ -370,13 +439,11 @@ high <- rbind(
   dplyr::select(NAME)
 
 
-
 #PUBLIC TRANSPORTATION
 #bus
 bus <- st_read("https://opendata.arcgis.com/datasets/021adadcf6854f59852ff4652ad90c11_0.geojson") %>%
   st_as_sf(coords = c("LON", "LAT"), crs = 4326, agr = "constant")  %>%
   st_transform('ESRI:102658')
-
 
 bus <- rbind(
   bus[miamiBound,] %>%
@@ -535,9 +602,7 @@ contaminated <-
 
 
 ```{r Wrangle Data, message=FALSE, warning=FALSE, include=TRUE, results='hide'}
-
 #CONTAMINATION BUFFER
-
  contamBuffer <- contaminated %>%
    st_buffer(800) %>%
    st_union() %>%
@@ -547,7 +612,6 @@ contaminated <-
    st_join(contamBuffer) %>%
    mutate(contam = ifelse(is.na(contam), 0, 1)) %>%
    pull(contam)
-
 
 
 #NEAREST NEIGHBOR (some are used for testing, to determine feature buffer distances)
@@ -574,6 +638,7 @@ contaminated <-
  commercial <- commercial %>%
    mutate(counter = 1) %>%
    dplyr::select(counter)
+ 
  #count properties within each buffer
 houses$commercialProperties <-
    st_buffer(houses, 846) %>%
@@ -588,12 +653,13 @@ houses$commercialProperties <-
  foodBev <- foodBev %>%
    mutate(counter = 1) %>%
    dplyr::select(counter)
+ 
  #count parks within each buffer
 houses$foodEstablishments <-
    st_buffer(houses, 2774) %>%
    aggregate(foodBev, ., sum) %>%
    st_drop_geometry() %>%
-    mutate(counter = ifelse(is.na(counter), 0, counter)) %>%
+   mutate(counter = ifelse(is.na(counter), 0, counter)) %>%
    pull(counter)
 
 
@@ -609,7 +675,6 @@ houses$cultureSpots <-
    st_drop_geometry() %>%
    mutate(counter = ifelse(is.na(counter), 0, counter)) %>%
    pull(counter)
-
 
 
 
@@ -640,7 +705,6 @@ houses$metromoverStops <-
    pull(counter)
 
 
-
 #BUS BUFFER
  bus <- bus %>%
    mutate(counter = 1) %>%
@@ -653,13 +717,12 @@ houses$busStops <-
   mutate(counter = ifelse(is.na(counter), 0, counter)) %>%
    pull(counter)
 
-
-
  #PARKS BUFFER + AREA CALCULATION (using 1600ft buffer distance because the mean NN1 = 1600)
  #get centroids
  parkCentroids <- parks %>%
    st_centroid(parks) %>%    #get centroids of park layer
   dplyr::select(counter)
+ 
  #count parks within each buffer
 houses$parkCount <-
    st_buffer(houses, 1600) %>%
@@ -667,21 +730,22 @@ houses$parkCount <-
    st_drop_geometry() %>%
    mutate(counter = ifelse(is.na(counter), 0, counter)) %>%
    pull(counter)
+
 #make buffer for each house
 parkBuffer <- st_buffer(houses, 1600) %>%
-  dplyr::select(Property.Address) %>%
+  dplyr::select(address) %>%
   st_as_sf()
+
 #calculate area of park space in each buffer
 bufferedParks <- st_intersection(parkBuffer, parks) %>%
-  group_by(Property.Address) %>%
+  group_by(address) %>%
   summarise() %>%
   mutate(parkArea = units::drop_units(st_area(.))) %>%
   st_drop_geometry()
+
 #add park area back to houses file
 houses <-
   left_join(houses, bufferedParks)
-
-
 
 #SCHOOL CATCHMENT CATEGORIES
  houses <-
@@ -695,39 +759,31 @@ houses <-
    houses <-
    st_join(houses, high) %>%
    rename(highCatch = 'NAME')
-
-
+   
 
  #SCHOOL DISTRICT CATEGORIES
  houses <-
    st_join(houses, schoolDist) %>%
    rename(schoolDist = ID)
 
-
  #FLOOD INSURANCE CATEGORIES
 floodInsure <- floodInsure %>%
   dplyr::select(floodInsureType)
+
 houses <- houses %>%
   st_join(., floodInsure) %>%
   mutate(floodInsureType = ifelse(is.na(floodInsureType), "other", floodInsureType))
 
-
-
 #ADD ACS DATA
 houses <-
   st_join(houses, acs)
-
-
 
 #School dist
  houses <-
    houses %>%
   mutate(elemCatch = ifelse(is.na(elemCatch), "other", elemCatch),
          middleCatch = ifelse(is.na(middleCatch), "other", middleCatch),
-         highCatch = ifelse(is.na(highCatch), "other", highCatch),
-         )
-
-
+         highCatch = ifelse(is.na(highCatch), "other", highCatch))
 
 #park
  houses <- houses %>%
@@ -753,58 +809,45 @@ houses[c("579","580","581","1016","1372","1557","1853","2140","2557","2563","257
 
 houses["441", c("NAME","timeToWork","medHHInc","monthhousingcost","pctVacant","pctWhite","pctRenterOcc")] = houses["2090", c("NAME","timeToWork","medHHInc","monthhousingcost","pctVacant","pctWhite","pctRenterOcc")]
 
-houses %>%
-  dplyr::select(-Property.Zip)
 
+houses <-
+  houses %>%
+  mutate(distWater = housesOSM$CoastDist)
 ```
 
 
-```{r Table 1: TABLE summary stats, message=FALSE, warning=FALSE, include=TRUE}
-#table of summary statistics with variable descriptions, sorted by category
-# 
-# housesSub <- houses %>%
-#   dplyr::select("AdjustedSqFt", "LotSize", "Bed", "Bath", "Stories", "commercialProperties", "age", "distWater", "foodEstablishments", "cultureSpots", "busStops", "parkArea", "timeToWork","monthhousingcost","pctVacant")
-# 
-# housesSub <- st_drop_geometry(housesSub)
-# 
-# stargazer(as.data.frame(housesSub), type="text", digits=1, title="Table 1: Descriptive Statistics for Miami Houses", out = "Miami Data.txt")
-
-```
-
-
-First, we use a correlation matrix (Figure 1) to get an idea of different variables' correlations with sale price. Below is a list of positive and negative correlations:
+First, we use a correlation matrix to get an idea of different external variables' correlations with sale price. Below is a list of positive and negative correlations:
 
 Positive:  
-- AdjustedSqFt  
-- Bath  
-- Bed  
-- Stories  
-- Food establishments (Slight)  
-- Park Area  
-- Median household income  
+- Median household income
+- Vacancy rate
+- Proximity to waterfront
 
 Negative:  
-- Time to work  
-- Monthly housing cost  
-- Age  
-- Percent renter occupancy 
+- Commercial properties
+- Metro rail
+- Bus stops
+- Time to work
+- Monthly housing cost
+- High renter occupancy
 
-```{r Figure 1: Correlation Matrix, fig.height=10, fig.width=10, message=FALSE, warning=FALSE}
+```{r Figure 1: Correlation Matrix, message=FALSE, warning=FALSE}
 
 corrPlotVars <- houses %>%
-  dplyr::select(-saleDate, -saleType, -saleYear, -Bldg, -Land, -Assessed, -WVDB, -HEX, -GPAR, -County.2nd.HEX, -County.Senior, -County.LongTermSenior, -County.Other.Exempt, -County.Taxable, -City.2nd.HEX, -City.Senior, -City.LongTermSenior, -City.Other.Exempt, -City.Taxable, -MillCode, -Owner1, -Owner2, -Mailing.State, -Mailing.Country, -Legal1, -Legal2, -Legal3, -Legal4, -Legal5, -Legal6, -YearBuilt, -EffectiveYearBuilt, -toPredict)
-
-numericVars <-
-  select_if(st_drop_geometry(corrPlotVars), is.numeric) %>% na.omit()
+  dplyr::select(price, commNN1, commNN5, metroMNN1, metroMNN5, metroRNN1, metroRNN5, foodBevNN1, foodBevNN5, commercialProperties, foodEstablishments, cultureSpots, metrorailStops, metromoverStops, busStops, parkCount, parkArea, timeToWork, medHHInc, monthhousingcost, pctVacant, pctWhite, pctRenterOcc, distWater) %>% 
+  na.omit() %>%
+  st_drop_geometry()
 
 ggcorrplot(
-  round(cor(numericVars), 1),
-  p.mat = cor_pmat(numericVars),
-  colors = c("#25CB10", "white", "#FA7800"),
+  round(cor(corrPlotVars), 1),
+  p.mat = cor_pmat(corrPlotVars),
+  colors = c("cyan", "white", "magenta"),
   type="lower",
   insig = "blank") +  
-    labs(title = "Figure 1: Sale Price Correlation with Numeric Variables") +
-  theme_minimal()
+    labs(title = "Sale Price Correlation with Numeric Variables", x = "", y = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 270, hjust = 0),
+        legend.position = "bottom")
 
 ```
 
@@ -825,7 +868,7 @@ housesUnknown <- houses %>%
   filter(.,toPredict ==1)
 
 #1: distWater
-ggplot(data = housesKnown, aes(x = distWater, y = SalePrice)) +
+ggplot(data = housesKnown, aes(x = distWater, y = price)) +
   geom_point(size=2, shape=20)  +
   labs(title = "Figure 2.1: Distance to Shoreline and Sale Price", subtitle = "Miami and Miami Beach, FL") +
   geom_smooth(method = "lm", se=F, colour = "green") +
