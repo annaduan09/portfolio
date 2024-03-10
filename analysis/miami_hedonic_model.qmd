@@ -40,7 +40,6 @@ library(ggcorrplot)
 library(mapview)
 library(osmdata)
 library(tidycensus)
-library(tidygeocoder)
 library(pander)
 library(tigris)
 
@@ -64,7 +63,7 @@ qBr <- function(df, variable, rnd) {
 q5 <- function(variable) {as.factor(ntile(variable, 5))}
 
 #nearest neighbor function
-nn_function <- function(measureFrom,measureTo,k) {
+nn_function <- function(measureFrom, measureTo,k) {
   measureFrom_Matrix <- as.matrix(measureFrom)
   measureTo_Matrix <- as.matrix(measureTo)
   nn <-   
@@ -113,7 +112,14 @@ houses <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Prediction/Ra
          actual_sqft = ActualSqFt,
          address = Property.Address) %>%
   dplyr::select(id, price, address, sale_type, city, zip_code, zoning, sqft, lot_size, beds, baths, stories, units, year_built, eff_year_built, feature_1, feature_2, feature_3, living_sqft, actual_sqft, toPredict)
-  
+
+ggplot() +
+  geom_sf(data = miamiBound, fill = "gray20", color = "transparent", size = 0.5) +
+  geom_sf(data = houses %>% filter(price > 0 & price < 1800000), aes(color = price/1000), size = 0.5, alpha = 0.5) +
+  scale_color_viridis_c(option = "plasma") +
+  labs(title = "Distribution of House Prices in Miami-Dade County", caption = "filtered for price < $3 million (95th percentile)", color = "Sale Price ($1k)") +
+  theme_void() + theme(legend.position = "bottom")
+
 ```
 
 ```{r house cat vars}
@@ -267,6 +273,7 @@ miamiBound <- st_read("/Users/annaduan/Desktop/GitHub/Miami-Home-Sales-Predictio
   st_make_valid() %>%
   st_union() %>%
   st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, agr = "constant") %>%
+  erase_water() %>%
   st_transform('ESRI:102658') # NAD 1983 StatePlane Florida East FIPS 0901 Feet
 ```
 
@@ -841,25 +848,36 @@ corrPlotVars <- houses %>%
 ggcorrplot(
   round(cor(corrPlotVars), 1),
   p.mat = cor_pmat(corrPlotVars),
-  colors = c("cyan", "white", "magenta"),
+  colors = c("cyan4", "white", "magenta"),
   type="lower",
+  lab = TRUE,
+  lab_size = 2,
+  lab_col = "white",
   insig = "blank") +  
     labs(title = "Sale Price Correlation with Numeric Variables", x = "", y = "") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 270, hjust = 0),
         legend.position = "bottom")
 
+
+correlation.long <- houses %>%
+  filter(price < 10000000 & price > 0) %>% # removes about 30 outliers, or <1 %
+  st_drop_geometry() %>%
+    dplyr::select(price, commNN1, commNN5, metroMNN1, metroMNN5, metroRNN1, metroRNN5, foodBevNN1, foodBevNN5, commercialProperties, foodEstablishments, cultureSpots, metrorailStops, metromoverStops, busStops, parkCount, parkArea, timeToWork, medHHInc, monthhousingcost, pctVacant, pctWhite, pctRenterOcc, distWater) %>%
+    gather(Variable, Value, -price) %>%
+  mutate(Value = as.numeric(Value))
+
+correlation.cor <-
+  correlation.long %>%
+    group_by(Variable) %>%
+    summarize(correlation = cor(Value, price, use = "complete.obs")) %>%
+  arrange(desc(correlation))
 ```
 
 
-Three variables that we will explore further are distWater, parkArea, pctVacant, and busStops. We expect that higher distWater and pctVacant values correlate with low sale prices, and parkArea and busStops make nearby houses more expensive and cost more.
-
-As expected, proximity to the shoreline (low distWater) is desirable, and correlates with higher sale price. Based on Figure 2.1, however, this trend is strongest when distWater < 1. This suggests that we need to feature engineer distWater to account for greater correlation at shorter distances. The amount of park area near a house is positively correlated with sale price, although not as strongly as expected (Figure 2.2).  
+Three variables that we will explore further are median household income (cor = 0.53), vacancy rate (cor = 0.49), and distance from commercial properties (cor = 0.38).
 	
 Surprisingly, the share of a census tract that is vacant has a positive correlation with sale price (Figure 2.3). This is unexpected because typically, vacant houses correlate with neighborhood disorder and unattractiveness. However, it is possible that these vacancies are the result of new construction and therefore do not make the area less attractive.
-
-Bus stops also defy our understanding of cities: according to TOD theory, homes near transportation should be more attractive. However, as Figure 2.4 shows, the number of nearby bus stops correlates negatively with sale price. This may be because lower-income households tend to rely more on public transit.
-
 
 ```{r Fig 2.1-2.4: 4 SCATTERPLOT home price correlation, message=FALSE, warning=FALSE}
 housesKnown <- houses %>%    
@@ -867,32 +885,10 @@ housesKnown <- houses %>%
 housesUnknown <- houses %>%
   filter(.,toPredict ==1)
 
-#1: distWater
-ggplot(data = housesKnown, aes(x = distWater, y = price)) +
-  geom_point(size=2, shape=20)  +
-  labs(title = "Figure 2.1: Distance to Shoreline and Sale Price", subtitle = "Miami and Miami Beach, FL") +
-  geom_smooth(method = "lm", se=F, colour = "green") +
-  theme_minimal()
-
-#2: parkArea
-ggplot(data = housesKnown, aes(x = parkArea, y = SalePrice)) +
-  geom_point(size=2, shape=20) +
-  labs(title = "Figure 2.2: Nearby Park Space and Sale Price", subtitle = "Miami and Miami Beach, FL") +
-  geom_smooth(method = "lm", se=F, colour = "green") +
-    theme_minimal()
-
-#3: vacant
-ggplot(data = housesKnown, aes(x = pctVacant, y = SalePrice)) +
-  geom_point(size=2, shape=20) +
+ggplot(data = housesKnown, aes(x = pctVacant, y = price)) +
+  geom_point(alpha = 0.5, color = "lightblue")  +
  labs(title = "Figure 2.3: Share of Vacant Properties and Sale Price", subtitle = "Miami and Miami Beach, FL") +
-  geom_smooth(method = "lm", se=F, colour = "green") +
-    theme_minimal()
-
-#4: bus stops
-ggplot(data = housesKnown, aes(x = busStops, y = SalePrice)) +
-  geom_point(size=2, shape=20) +
- labs(title = "Figure 2.4: Bus Stops and Sale Price", subtitle = "Miami and Miami Beach, FL") +
-  geom_smooth(method = "lm", se=F, colour = "green") +
+  geom_smooth(method = "lm", se=F, colour = "gray") +
     theme_minimal()
 ```
 
@@ -912,7 +908,7 @@ water <- st_read("https://opendata.arcgis.com/datasets/bf9de3192c9c4e458d1453f6d
 ggplot() +
   geom_sf(data = acs, fill = "gray80", colour = "white") +
   geom_sf(data = water, fill = "light blue", colour = "light blue") +
-  geom_sf(data = housesKnown, aes(colour = q5(SalePrice))) +
+  geom_sf(data = housesKnown, aes(colour = q5(price))) +
   scale_colour_manual(values = paletteMap) +
   labs(title = "Figure 3: Home Sale Price", subtitle = "Miami and Miami Beach, FL") +
   theme_void()
@@ -983,6 +979,19 @@ geom_sf(data = acs, fill = "gray90", colour = "white") +
   theme_void()
 
 ```
+```{r spatial price lag}
+
+houses_known <-  houses %>% filter(toPredict == 0)
+
+nb_list <- knn2nb(knearneigh(houses_known, 6))
+
+spatial_weights <- nb2listw(nb_list, style="W")
+
+
+t <- houses_known %>% 
+  mutate(price_nearest_5 = lag.listw(spatial_weights, price))
+
+```
 
 
 ## Methods 
@@ -993,7 +1002,7 @@ Now knowing that attractive amenities, high income households, large houses, and
 
  #0.72 R2
   reg2 <- lm(SalePrice ~ ., data = st_drop_geometry(housesKnown) %>%
-             dplyr::select(SalePrice, ActualSqFt, LotSize, Zoning, Stories.cat, Bath.cat, Pool, medHHInc, Dock, Bed.cat, middleCatch, age, pctVacant, pctRenterOcc, monthhousingcost, Patio, foodEstablishments, timeToWork, metromoverStops, metrorailStops, parkArea, floodInsureType))
+             dplyr::select(price, actual_sqft, lot_size, zoning, Stories.cat, Bath.cat, Pool, medHHInc, Dock, Bed.cat, middleCatch, age, pctVacant, pctRenterOcc, monthhousingcost, Patio, foodEstablishments, timeToWork, metromoverStops, metrorailStops, parkArea, floodInsureType))
 ```
 
 
@@ -1148,19 +1157,17 @@ round_df <- function(x, digits) {
 }
 reg.cv.rs.min <- round_df(reg.cv.rs.min, 2)
 
-library(kableExtra)
 
 
 reg.cv.rs.min <- reg.cv$resample[75,]
 
 
-reg.cv.rs.min %>%                     #AD: knitting stops here
+reg.cv.rs.min %>%                     
   gather(Variable, Value) %>%
   #filter(Variable == "MAE" | Variable == "RMSE") %>%
   group_by(Variable) %>%
     spread(Variable, Value) %>%
-    kable(caption = "Table 3: Regression Results of One Test Set") %>%
-   kable_classic(full_width = F, html_font = "Cambria")
+    pander(caption = "Table 3: Regression Results of One Test Set") 
 ```
 
 
@@ -1441,7 +1448,7 @@ st_join(bothRegressions, acsRaceIncome) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
   st_drop_geometry() %>%
   spread(raceContext, mean.MAPE) %>%
-  kable(caption = "Table 5: MAPE by Neighborhood Racial Context")
+  pander(caption = "Table 5: MAPE by Neighborhood Racial Context")
 
 st_join(bothRegressions, acsRaceIncome) %>%
   filter(!is.na(incomeContext)) %>%
@@ -1449,7 +1456,7 @@ st_join(bothRegressions, acsRaceIncome) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
   st_drop_geometry() %>%
   spread(incomeContext, mean.MAPE) %>%
-  kable(caption = "Table 6: MAPE by Neighborhood Income Context")
+  pander(caption = "Table 6: MAPE by Neighborhood Income Context")
 
 
 ```
