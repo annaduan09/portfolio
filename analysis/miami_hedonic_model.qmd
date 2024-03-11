@@ -146,7 +146,7 @@ ggplot() +
   geom_sf(data = bg, fill = "gray15", color = "transparent") +
   geom_sf(data = miamiBound, fill = "gray20", color = "transparent", size = 0.5) +
   geom_sf(data = rd, color = "gray5", fill = "transparent", linewidth = 0.1) +
-  geom_sf(data = parks %>% st_union(), fill = "chartreuse4", color = "transparent", alpha = 0.3) +
+  # geom_sf(data = parks %>% st_union(), fill = "chartreuse4", color = "transparent", alpha = 0.3) +
   geom_sf(data = houses %>% filter(price > 0 & price < 1800000), aes(color = price/1000), size = 0.5, alpha = 0.5) +
   scale_color_viridis_c(option = "plasma") +
   geom_sf_label(data = centroids, aes(label = str_to_title(NAME)), size = 5, color = "gray20") +
@@ -160,7 +160,7 @@ ggplot() +
   geom_sf(data = bg, fill = "gray15", color = "transparent") +
   geom_sf(data = miamiBound, fill = "gray20", color = "transparent", size = 0.5) +
   geom_sf(data = rd, color = "gray5", fill = "transparent", linewidth = 0.1) +
-  geom_sf(data = parks %>% st_union(), fill = "chartreuse4", color = "transparent", alpha = 0.3) +
+  # geom_sf(data = parks %>% st_union(), fill = "chartreuse4", color = "transparent", alpha = 0.3) +
   geom_sf(data = houses %>% filter(actual_sqft < quantile(houses$actual_sqft, 0.95)), aes(color = actual_sqft/1000), size = 0.5, alpha = 0.5) +
   scale_color_viridis_c(option = "magma", direction = 1, name = "Square Feet\n(thousands)") +
     geom_sf_label(data = centroids, aes(label = str_to_title(NAME)), size = 5, color = "gray20") +
@@ -986,6 +986,22 @@ ggplot() +
   geom_sf_label(data = centroids, aes(label = str_to_title(NAME)), size = 5, color = "gray20") +
   labs(title = "K-nearest sale prices (k=6)", color = "Price ($1k)") +
   theme_void()
+```
+
+### Outlier Analysis
+```{r outlier analysis}
+houses_known$top_5_pct <- ifelse(houses_known$price > quantile(houses_known$price, 0.95), 1, 0)
+
+houses_known %>%
+  st_drop_geometry() %>%
+  group_by(top_5_pct) %>%
+  summarise(price = median(price), 
+            medhhinc = median(medHHInc),
+            actual_sqft = median(actual_sqft),
+            lot_size = median(lot_size),
+            distWater = median(distWater),
+            n = n()) %>%
+  pander()
 ```
 
 
