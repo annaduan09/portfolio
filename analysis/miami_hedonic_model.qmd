@@ -812,8 +812,8 @@ houses <- houses %>%
   mutate(floodInsureType = ifelse(is.na(floodInsureType), "other", floodInsureType))
 
 #ADD ACS DATA
-houses <-
-  st_join(houses, acs)
+houses <- houses %>% 
+  st_intersection(acs)
 
 #School dist
  houses <-
